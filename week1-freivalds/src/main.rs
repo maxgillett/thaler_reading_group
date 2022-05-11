@@ -8,7 +8,7 @@ use ark_ff::PrimeField;
 use ark_std::{rand::RngCore, UniformRand};
 use na::{DMatrix, DVector};
 
-fn frievalds<P: PrimeField, R: RngCore>(
+fn freivalds<P: PrimeField, R: RngCore>(
     a: &DMatrix<P>,
     b: &DMatrix<P>,
     c: &DMatrix<P>,
@@ -36,7 +36,7 @@ fn main() {
     let b = DMatrix::from_fn(nrows, ncols, |_, _| Fr::rand(&mut rng));
     let c = &a * &b;
 
-    match frievalds(&a, &b, &c, &mut rng) {
+    match freivalds(&a, &b, &c, &mut rng) {
         true => println!("YES"),
         false => println!("NO"),
     }
@@ -61,13 +61,13 @@ mod tests {
     }
 
     #[bench]
-    fn bench_frievalds_runtime_50(bencher: &mut Bencher) {
+    fn bench_freivalds_runtime_50(bencher: &mut Bencher) {
         let (nrows, ncols) = (50, 50);
         let mut rng = ark_std::test_rng();
         let a = DMatrix::from_fn(nrows, ncols, |_, _| Fr::rand(&mut rng));
         let b = DMatrix::from_fn(nrows, ncols, |_, _| Fr::rand(&mut rng));
         let c = &a * &b;
-        bencher.iter(|| frievalds(&a, &b, &c, &mut rng));
+        bencher.iter(|| freivalds(&a, &b, &c, &mut rng));
     }
 
     #[bench]

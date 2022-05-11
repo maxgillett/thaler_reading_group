@@ -129,7 +129,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "frievalds"
+name = "freivalds"
 version = "0.1.0"
 dependencies = [
  "ark-bls12-381",
