@@ -6,8 +6,8 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-#ark-ff = {git = "https://github.com/arkworks-rs/algebra.git"}
-ark-ff = "0.3.0"
+ark-ff = {git = "https://github.com/arkworks-rs/algebra.git"}
+#ark-ff = "0.3.0"
 ark-bls12-381 = "0.3.0"
 itertools = "0.10.3"
 ark-std = "0.3.0"

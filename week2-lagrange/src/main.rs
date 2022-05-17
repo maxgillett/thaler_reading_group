@@ -1,8 +1,11 @@
-// TODO: Change prime field from bls12 to F_5
-
-use ark_bls12_381::Fr;
-use ark_ff::PrimeField;
+use ark_ff::{fields::Fp64, MontBackend, MontConfig, PrimeField};
 use itertools::Itertools;
+
+#[derive(MontConfig)]
+#[modulus = "5"]
+#[generator = "3"]
+pub struct FqConfig;
+pub type Fr = Fp64<MontBackend<FqConfig, 1>>;
 
 // Naive Langrage interpolation implementation (Lemma 3.7)
 fn lagrange<P: PrimeField, F: Fn(&Vec<bool>) -> P>(f: F, n: usize) -> impl Fn(Vec<P>) -> P {
