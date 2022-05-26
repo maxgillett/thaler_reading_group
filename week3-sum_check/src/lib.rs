@@ -1,6 +1,7 @@
 use ark_ff::{fields::Fp64, Field, MontBackend, MontConfig, PrimeField};
 use ark_poly::multivariate::{SparsePolynomial, SparseTerm, Term};
 use ark_poly::{DenseMVPolynomial, Polynomial};
+use rand::rngs::StdRng;
 use std::marker::PhantomData;
 
 struct Prover<F: PrimeField, P: Polynomial<F>> {
@@ -11,6 +12,7 @@ struct Prover<F: PrimeField, P: Polynomial<F>> {
 struct Verifier<F: PrimeField, P: Polynomial<F>> {
     poly: P,
     oracle: Oracle<F, P>,
+    rng: StdRng,
     phantom: PhantomData<F>,
 }
 
@@ -20,13 +22,19 @@ struct Oracle<F: PrimeField, P: Polynomial<F>> {
 }
 
 enum Message<F: PrimeField, P: Polynomial<F>> {
-    PolynomialSubmission(P),
-    PolynomialVerification(P),
-    RandomElement(F),
+    ProverSendPolynomial(P),
+    VerifierSendRandomElement(F),
+}
+
+struct Round<F: PrimeField, P: Polynomial<F>> {
+    poly: P,
+    r: F,
 }
 
 struct Transcript<F: PrimeField, P: Polynomial<F>> {
+    num_rounds: usize,
     messages: Vec<Message<F, P>>,
+    rounds: Vec<Round<F, P>>,
 }
 
 impl<F, P> Prover<F, P>
@@ -41,9 +49,12 @@ where
         }
     }
     fn send_C1(&self, ts: &mut Transcript<F, P>) {
+        // TODO: Sum over indeterminates
         unimplemented!()
     }
-    fn send_poly(&self, ts: &mut Transcript<F, P>) {
+    fn send_poly(&self, idx: usize, ts: &mut Transcript<F, P>) {
+        // TODO: Substitute random elements in polynomial and sum over indeterminates
+        // let r_vec = (0..idx).map(|i| ts.get_random_element(i)).collect::<Vec<_>>();
         unimplemented!()
     }
 }
@@ -51,33 +62,48 @@ where
 impl<F, P> Verifier<F, P>
 where
     F: PrimeField,
-    P: Polynomial<F>,
+    P: Polynomial<F, Point = Vec<F>>,
 {
     fn new(poly: P, oracle: Oracle<F, P>) -> Self {
         Self {
             poly,
             oracle,
+            rng: ark_std::test_rng(),
             phantom: PhantomData,
         }
     }
-    fn verify_poly(&self, ts: &mut Transcript<F, P>) {
-        unimplemented!()
+    /// Check that g_{j-1}(r_{j-1}) = g_j(0) + g_j(1)
+    fn verify_poly(&self, round: usize, ts: &mut Transcript<F, P>) {
+        let g_j = ts.get_poly(round);
+        let g_j_1 = ts.get_poly(round - 1);
+        let r_j_1 = ts.get_random_element(round - 1);
+        assert_eq!(
+            g_j.evaluate(&[F::from(0u8)].into()) + g_j.evaluate(&[F::from(1u8)].into()),
+            g_j_1.evaluate(&vec![r_j_1])
+        );
     }
     /// Check that g_v(r_v) = g(r_1,...,r_v)
     fn verify_poly_v(&self, ts: &mut Transcript<F, P>) {
-        //let r = ts.get_random_elements();
-        //self.oracle.evaluate_at(r);
-        unimplemented!()
+        let v = ts.num_rounds - 1;
+        let g_v = ts.get_poly(v);
+        let r_vec = (0..ts.rounds.len())
+            .map(|i| ts.get_random_element(i))
+            .collect::<Vec<_>>();
+        let g_eval = self.oracle.evaluate_at(&r_vec);
+        let g_v_eval = g_v.evaluate(&[r_vec[v]].into());
+        assert_eq!(g_eval, g_v_eval,);
     }
-    fn draw_random_element(&self, ts: &mut Transcript<F, P>) {
-        unimplemented!()
+    /// Draw a random element uniformly from F and append to transcript
+    fn draw_random_element(&mut self, round: usize, ts: &mut Transcript<F, P>) {
+        let r = F::rand(&mut self.rng);
+        ts.append(round, Message::VerifierSendRandomElement(r));
     }
 }
 
 impl<F, P> Oracle<F, P>
 where
     F: PrimeField,
-    P: Polynomial<F>,
+    P: Polynomial<F, Point = Vec<F>>,
 {
     fn new(poly: P) -> Self {
         Self {
@@ -86,18 +112,43 @@ where
         }
     }
     /// Evaluate the stored polynomial g at the point x
-    fn evaluate_at(&self, x: P::Point) -> F {
-        self.poly.evaluate(&x)
+    fn evaluate_at(&self, x: &[F]) -> F {
+        self.poly.evaluate(&x.into())
     }
 }
 
-impl<F: PrimeField, P: Polynomial<F>> Transcript<F, P> {
+impl<F, P> Transcript<F, P>
+where
+    F: PrimeField,
+    P: Polynomial<F>,
+{
     fn new(num_rounds: usize) -> Self {
-        Self { messages: vec![] }
+        Self {
+            num_rounds,
+            messages: Vec::with_capacity(num_rounds * 2),
+            rounds: Vec::with_capacity(num_rounds),
+        }
     }
 
-    fn get_random_elements(&self) -> P::Point {
-        unimplemented!()
+    fn append(&mut self, idx: usize, msg: Message<F, P>) {
+        match &msg {
+            Message::ProverSendPolynomial(p) => {
+                self.rounds[idx].poly = p.clone();
+            }
+            Message::VerifierSendRandomElement(r) => {
+                self.rounds[idx].r = *r;
+            }
+            _ => {}
+        }
+        self.messages.push(msg);
+    }
+
+    fn get_poly(&self, idx: usize) -> &P {
+        &self.rounds[idx].poly
+    }
+
+    fn get_random_element(&self, idx: usize) -> F {
+        self.rounds[idx].r
     }
 }
 
@@ -130,14 +181,14 @@ fn sumcheck<F: PrimeField>(
 ) -> Result<bool, Error> {
     let prover = Prover::new(poly.clone());
     let oracle = Oracle::new(poly.clone());
-    let verifier = Verifier::new(poly, oracle);
+    let mut verifier = Verifier::new(poly, oracle);
 
     let mut ts: Transcript<F, SparsePolynomial<F, SparseTerm>> = Transcript::new(num_rounds);
 
     for i in 0..num_rounds - 1 {
-        prover.send_poly(&mut ts);
-        verifier.verify_poly(&mut ts);
-        verifier.draw_random_element(&mut ts);
+        prover.send_poly(i, &mut ts);
+        verifier.verify_poly(i, &mut ts);
+        verifier.draw_random_element(i, &mut ts);
     }
     verifier.verify_poly_v(&mut ts);
 

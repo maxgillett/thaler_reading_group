@@ -1,5 +1,5 @@
 [package]
-name = "lagrange"
+name = "week4-gkr"
 version = "0.1.0"
 edition = "2021"
 
@@ -7,6 +7,4 @@ edition = "2021"
 
 [dependencies]
 ark-ff = {git = "https://github.com/arkworks-rs/algebra.git"}
-ark-bls12-381 = "0.3.0"
-itertools = "0.10.3"
-ark-std = "0.3.0"
+ark-poly = {git = "https://github.com/arkworks-rs/algebra.git"}

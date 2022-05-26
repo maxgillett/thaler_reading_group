@@ -8,3 +8,5 @@ edition = "2021"
 [dependencies]
 ark-ff = {git = "https://github.com/arkworks-rs/algebra.git"}
 ark-poly = {git = "https://github.com/arkworks-rs/algebra.git"}
+ark-std = "0.3.0"
+rand = "0.8.5"
